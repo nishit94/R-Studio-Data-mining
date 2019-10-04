@@ -1,0 +1,208 @@
+---
+title: "n9915567 project"
+author: "Nishit Ramoliya"
+date: "21 May 2018"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+#Task 1: Data Mining
+
+```{r Task 1}
+#Creating a dataframe using read.table
+dataFrame<-read.table("yeast.data")
+
+# Decision trees use probability to choose how to split, so here we "seed" a random number generator so our results are always the same.
+#Set seed 
+set.seed(1234)
+
+# Task 1a: Split the data into 70% training, 30% test: this means we use 70% of the dataset to build our predictive model. We then use the remaining 30% of data as the unseen data (test) in order to evaluate the predictions.
+
+ind<-sample(2,nrow(dataFrame),replace = TRUE,prob = c(0.7,0.3))
+train_data<-dataFrame[ind==1,]
+test_data<-dataFrame[ind==2,]
+
+#Display statistics of data
+num_record=nrow(test_data)
+cat("No. of record in test data: ",num_record)
+num_classes=length(unique(test_data$V10))
+cat("\nNo. of classes: ",num_classes)
+cat("\n")
+summary(dataFrame)
+```
+
+    Here, we have stored dataset in "dataFrame" variable and set the seed to random number. Now, divide the data into 70-30 split. Then display the summary and statistics of data. In next task, from test data and train data plot decision tree.
+
+    The "ctree() buils the decision tree."
+    In above, I have used decision tree as classification model. The formula describes that "V10" is target variable and variables from V2 to V9 are independent variables.
+
+    Definition:
+    - target variable: the variable whose values are to be modeled and predicted by the independent variables.
+    - independent variables: the variables that are changed or controlled to test the effects on the target variable.
+
+    Now that we have constructed our decision tree, let's visualise how it chose to split the independent variables to classify target variables.
+
+#Task 1 continue
+```{r Task 1b, fig.height=10, fig.width=30}
+#Task 1b:
+# Use Decision tree as classification model
+library(party)
+formula<-V10~V2+V3+V4+V5+V6+V7+V8+V9
+d_tree<-ctree(formula,train_data)
+d1tree<-ctree(formula,test_data)
+#Plot decision tree
+plot(d_tree,uniform=TRUE,branch=0.25,compress=TRUE,margin=0.25)
+```
+
+    The barplot for each terminal (or leaf) node shows the probabilities of an instance falling into the three species. Each non-terminal node shows which criteria is used to split, and the branches display the splitting criteria. For instance, the split criteria for for node 1 is V4. If V2 is <=0.43, then create target node as V2 and further builds the branches of tree and yeast are identified as CYT and MIT. Else v>0.43 then also it create target node as V2 but this side of tree has more branches.
+
+    Next, we are interested to see a summary of the predictions that are made and compare these predictions to the true values recorded for the test data (remember, we did not use these true values for the target variables when learning the model).
+```{r Task 1c}
+dd<-table(predict(d_tree,newdata=test_data),test_data$V10)
+table(predict(d1tree,newdata=test_data),test_data$V10)
+```
+
+    We show this summary as a table (computed with the `table()`) function, which is also called a confusion matrix: in one dimension of the table (say, the columns) we report the true values for the unseen specimens; in the other dimension (say, the rowa), we report the predicted values. The values in the main diagonal (from top-left to bottom-right) of the table represent the number of correct classification for each class.
+```{r Task 1d}
+#Task 1d
+library(caret)
+library(lattice)
+library(ggplot2)
+confusionMatrix(predict(d_tree,newdata=test_data),test_data$V10)
+```
+
+    From the confusion matrix, it can be concluded that the accuracy of model is 0.5926
+#Task 2: Data Visualization
+```{r Task 2a}
+#Task 2(a)
+library(ggplot2)
+library(gridExtra)
+require(reshape2)
+set.seed(1234)
+head(train_data)
+head(melt(train_data))
+
+long_yeast<-melt(train_data,id.vars = c('V1','V10'),variable.name = "Measurement")
+head(long_yeast)
+
+ggplot(long_yeast,aes(x=V10,y=value, color=V10))+geom_point()
+```
+
+```{r fig.height=5, fig.width=10}
+ggplot(long_yeast,aes(x=V10,y=value))+geom_point()+facet_wrap(~Measurement,scales ="free")
+```
+
+    From previous confusion matrix the predicted variables are found between 0 and 70. Now, it is required to normalise the predicted data between 0 and 1 using min-max normalisation.
+
+          x-min(x)
+    z = -------------
+        max(x)-min(x)
+    After tranforming the data, we have producedthe heatmap visualisation.
+
+```{r Task 2b}
+#Task 2(b)
+library(RSNNS)
+set.seed(1234)
+#Normalise data between 0 and 1.
+nx<-normalizeData(dd, type = '0_1')
+#Rename the column names
+colnames(nx)<-c("CYT","NUC","MIT","ME3","ME2","ME1","EXC","VAC","POX","ERL")
+rownames(nx)<-c("CYT","NUC","MIT","ME3","ME2","ME1","EXC","VAC","POX","ERL")
+
+#Store normalised data into dataframe.
+tbl<-as.data.frame(as.table(nx))
+#Pslot heatmap visualisation.
+ggplot(tbl, aes(x=Var1, y=Var2, fill=Freq)) + geom_tile(colour = "white") + scale_fill_gradient(low = "yellow", high = "red")
+```
+
+
+#Task 3: Data Analysis
+    
+    #3(a)
+    #3.1
+    The confusion matrix is constructed using 70-30 split with respect to true and  false positives.
+    Sensitivity - true positive rate = TP/(TP+FN)
+    Specificity - true negative rate = TN/(TN+FP)
+    Pos Pred Value - PPV = TP/(TP+FP)
+    neg pred value (NPV) = TN/(TN+FN)
+    Balanced Accuracy (ACC) = (TP+TN)/(TP+FP+FN+TN)
+
+        TRUE Positive | FALSE Positive
+    CYT       69      |       68
+    ERL       0       |       5
+    EXC       9       |       2
+    ME1       7       |       2
+    ME2       7       |       8
+    ME3       42      |       4
+    MIT       52      |       36
+    NUC       67      |       37
+    POX       3       |       0
+    VAC       0       |       9
+
+    #3.2
+   
+    Here, decision tree is used as classification model. This model is simple and widely used technique. It gives clear idea and understanding to the classification problem. Decision tree classifier have series of crafted questions, about the attribute of the test record. Every time a question and follow up question is answered until class label of record. Therefore, classifier are effective.
+
+    #3.3
+   
+    Here, we have split the dataset into 70-30. The data is divided into two types training data ad test data, which can used for comparing the results. From that we ca plot the decision tree and predict the accuracy using confusion matrix. The following formula has been used:
+
+    Formual<- Target_variable + Sum of independent variable
+
+    Target_variable: The variable whose value are to be modeled & predicted by the independent variables.
+
+    Independent_variable: The variables that are changed or controlled to test the effect on the target variable. Now, for the model we used target variable and made prediction.
+
+
+
+```{r Task 3b, fig.height=10, fig.width=20}
+#Task 3b
+set.seed(1234)
+library(leaps)
+dataset<-dataFrame
+split_data<-sample(2,nrow(dataset),replace=TRUE,prob=c(0.7,0.3))
+train<-dataset[split_data==1,]
+test<-dataset[split_data==2,]
+
+leaps<-regsubsets(train$V10~train$V2+train$V3+train$V4+train$V5+train$V6+train$V7+train$V8+train$V9,data=train,nbest=8, really.big=T)
+
+plot(leaps,scale="adjr2")
+plot(leaps,scale="bic")
+```
+
+      Here, we have produce another dataset from "dataFrame", which is used to produce the comparison between classification model ad accuracy.From the "bic graph", we conclude that variable V3,V6 and V8 can br removed. By assigning NULL values to those three column, produce decision tree. 
+      Each row in bic graph reprsents a model, shaded rectangles in columns indicates the variables included in the given model. The number of left margin are the values of independent variables. The darkness of shade describes the ordering of BIC values. 
+```{r fig.width=30,fig.height=10}
+#Removing 3 variables.
+dataset$V3<-NULL
+dataset$V6<-NULL
+dataset$V8<-NULL
+
+library(party)
+formula<-V10~V2+V4+V5+V7+V9
+DTree<-ctree(formula,data = train)
+plot(DTree,uniform=TRUE,branch=0.25,compress=TRUE,margin=0.25)
+```
+
+    Here, the split criteria for node 1 is V4. If the value of V4 is <=0.43, then it moves to node V2 and similarly if V4>0.43, then it will build same tree as classification model. 
+
+```{r}
+library(caret)
+library(lattice)
+
+confusionMatrix(predict(DTree,newdata=test),test$V10)
+```
+
+    Now, we will produce the confusion matrix and check the accuracy. The accuracy found to be is 0.581 , which is almost similar from previous decisio tree.
+    
+    
+    
+    
